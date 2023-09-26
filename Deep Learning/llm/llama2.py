@@ -2,11 +2,11 @@ from transformers import AutoTokenizer
 import transformers
 import torch
 
-n_params = 7 
+
+n_params = 7
 # n_params = 13
 
 model = f"meta-llama/Llama-2-{n_params}b-chat-hf"
-# prompt = 'I liked "Breaking Bad" and "Band of Brothers". Do you have any recommendations of other shows I might like?\n',
 prompt = "my favorite food is cheesecake, what other kinds of dessert may i like?\n"
 
 tokenizer = AutoTokenizer.from_pretrained(model)
