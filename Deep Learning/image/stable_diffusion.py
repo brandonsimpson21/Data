@@ -21,7 +21,7 @@ refiner.to("cuda")
 n_steps = 1000
 high_noise_frac = 0.8
 
-prompt = "A nervous narwhal swimming in the ocean"
+prompt = "A majestic narwhal defeating a unicorn in battle."
 
 # run both experts
 image = base(
@@ -30,10 +30,12 @@ image = base(
     denoising_end=high_noise_frac,
     output_type="latent",
 ).images
+
 image = refiner(
     prompt=prompt,
     num_inference_steps=n_steps,
     denoising_start=high_noise_frac,
     image=image,
 ).images[0]
+
 image.save("diffusion.png")
