@@ -4,6 +4,7 @@ from transformers import pipeline
 from collections import OrderedDict
 import torch
 from sentence_transformers import SentenceTransformer
+import warnings
 
 
 class ModelManager:
@@ -14,7 +15,7 @@ class ModelManager:
 
     def __init__(self) -> None:
         self.models: OrderedDict[Hashable, Callable] = OrderedDict()
-        self._on_gpu = ""
+        self._on_gpu = None
 
     @property
     def on_gpu(self):
@@ -31,32 +32,38 @@ class ModelManager:
         """
         if self._on_gpu == new_id:
             return
-        if self.models.get(self._on_gpu) is not None:
-            if hasattr(self.models[self._on_gpu], "to"):
-                self.models.get(self._on_gpu).to("cpu")
-            else:
-                if hasattr(self.models[self._on_gpu], "model"):
-                    if hasattr(self.models[self._on_gpu].model, "to"):
-                        self.models.get(self._on_gpu).model.to("cpu")
+        if self._on_gpu is not None:
+            self.to_device(self.models.get(self._on_gpu), "cpu")
+            self.to_device(getattr(self.models.get(self._on_gpu), "tokenizer"), "cpu")
 
-        if self.models.get(new_id) is not None:
-            if hasattr(self.models[new_id], "to"):
-                self.models[new_id].to("cuda")
-            else:
-                if hasattr(self.models[self.new_id], "model"):
-                    if hasattr(self.models[self.new_id].model, "to"):
-                        self.models.get(self.new_id).model.to("cuda")
-            self._on_gpu = new_id
+        self.to_device(self.models.get(new_id), "cuda")
+        self.to_device(getattr(self.models.get(new_id), "tokenizer"), "cuda")
 
-    def is_on_gpu(self, id: Hashable) -> bool:
-        """
-        is model with <id> currently on_gpu
-        :param id: model id
-        :type id: Hashable
-        :return: true model is currently on gpu
-        :rtype: bool
-        """
-        return True if self._on_gpu == id else False
+        self._on_gpu = new_id
+
+    def to_device(self, mod, device="cpu"):
+        if mod is None:
+            return
+        if device == "cpu":
+            if hasattr(mod, "cpu"):
+                mod.cpu()
+            elif hasattr(mod, "to"):
+                mod.to("cpu")
+            elif hasattr(mod, "model"):
+                if hasattr(mod.model, "cpu"):
+                    mod.model.cpu()
+                elif hasattr(mod.model, "to"):
+                    mod.model.to("cpu")
+        elif device == "cuda":
+            if hasattr(mod, "cuda"):
+                mod.cuda()
+            elif hasattr(mod, "to"):
+                mod.to("cuda")
+            elif hasattr(mod, "model"):
+                if hasattr(mod.model, "cuda"):
+                    mod.model.cuda()
+                elif hasattr(mod.model, "to"):
+                    mod.model.to("cuda")
 
     def register_model(
         self, model: Callable, id: Optional[Hashable] = None
@@ -72,24 +79,32 @@ class ModelManager:
         :rtype: Hashable
         """
         id = uuid.uuid4() if id is None else id
-        if hasattr(model, "to"):
-            self.models[id] = model.to("cpu")
-        else:
-            self.models[id] = model
+        self.models[id] = model
+        self.to_device(self.models.get(id), "cpu")
+        self.to_device(getattr(self.models.get(id), "tokenizer"), "cpu")
         return id
 
-    def deregister_model(self, id: Hashable):
+    def unregister_model(self, id: Hashable):
         """
         remove model with id from model registry
 
         :param id: model id
         :type id: Hashable
         """
-        self._on_gpu = None
-        self.models.pop(id)
+        if self._on_gpu == id:
+            self._on_gpu = None
+        if id in self.models.keys():
+            self.to_device(self.models.get(id), "cpu")
+            self.to_device(getattr(self.models.pop(id), "tokenizer"), "cpu")
 
     def __call__(self, input):
-        return self.models.get(self._on_gpu)(input)
+        mod = self.models.get(self._on_gpu)
+        if mod == None:
+            warnings.warn("set on_gpu before calling manager")
+            return
+        if self._on_gpu == "encoder":
+            return mod.encode(input)
+        return mod(input)
 
     @staticmethod
     def get_default():
@@ -102,84 +117,34 @@ class ModelManager:
         :rtype: ModelManager
         """
         mngr = ModelManager()
-        encoder = SentenceTransformer("BAAI/bge-base-en-v1.5", device="cpu")
-        encoder = torch.compile(encoder, fullgraph=True)
+
+        encoder = SentenceTransformer("BAAI/bge-base-en-v1.5")
         mngr.register_model(encoder, "encoder")
 
         summarizer = pipeline(
             "summarization",
             model="facebook/bart-large-cnn",
-            device="cpu",
-            torch_dtype=torch.bfloat16,
         )
-        summarizer.model = torch.compile(summarizer.model, fullgraph=True)
+
         mngr.register_model(summarizer, "summarizer")
 
         intent = pipeline(
             "text-generation",
-            device="cpu",
             model="mistralai/Mistral-7B-v0.1",
             torch_dtype=torch.float16,
+            use_flash_attention_2=True,
+            
         )
-        intent.model = torch.compile(intent.model, fullgraph=True)
         mngr.register_model(intent, "intent_generator")
         return mngr
 
-    def call_sequentially(self, input, ids: Iterable[Hashable]):
-        """
-         apply models sequentiall by id useful for
-        mod3(mod2(mod1)) style computations
-
-        :param input: model input
-        :type input: Any
-        :param ids: model id
-        :type ids: Iterable[Hashable]
-        :return: output of sequence
-        :rtype: _type_
-        """
-        output = input
-        for id in ids:
-            if id in self.models.keys():
-                self.on_gpu = id
-                output = self(id)
-        self.on_gpu = ids[0]
-        return output
-
-    def call_iteratively(self, input, ids: Iterable[Hashable]):
-        """
-         apply models sequentially on input
-
-        :param input: model input
-        :type input: Any
-        :param ids: model id
-        :type ids: Iterable[Hashable]
-        :return: output of each model
-        :rtype: Iterable[Any]
-        """
-        output = []
-        for id in ids:
-            if id in self.models.keys():
-                self.on_gpu = id
-                output.append(self(input))
-        self.on_gpu = ids[0]
-        return output
-
-    def __getitem__(self, id: Hashable) -> Callable:
-        self.on_gpu = id
-        return self.models.get(id)
-
 
 if __name__ == "__main__":
-    mngr = ModelManager()
-
-    mock_model = lambda x: x
-    mock_model2 = lambda _: -66
-
-    id = mngr.register_model(mock_model, "mock")
-    id2 = mngr.register_model(mock_model2)
-
-    assert id == "mock"
-    assert mngr.is_on_gpu(id) == False
-    mngr.on_gpu = id
-    assert mngr.is_on_gpu(id) == True
-    assert mngr("test") == "test"
+    mngr = ModelManager.get_default()
+    mngr._on_gpu
+    print(mngr.models.get("encoder").device)
+    print(mngr.models.get("summarizer").device)
+    print(mngr.models.get("intent_generator").device)
+    mngr.on_gpu = "encoder"
+    print(mngr.models.get("encoder").device)
+    
