@@ -1,10 +1,9 @@
-
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 from typing import Optional
 
-class Data(Dataset):
 
+class Data(Dataset):
     def __init__(self, data_path):
         pass
 
@@ -23,7 +22,7 @@ class Loader(pl.LightningDataModule):
         self.nworkers = config.get("nworkers")
         self.batch_size = config.get("batch_size")
 
-        #TODO
+        # TODO
         self.train_root = data_path + "train/"
         self.val_root = data_path + "validate/"
         self.test_root = data_path + "test/"

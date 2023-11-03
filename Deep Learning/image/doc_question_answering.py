@@ -2,9 +2,12 @@ from transformers import DonutProcessor, VisionEncoderDecoderModel
 import re
 import torch
 
+
 def get_answer(image, question):
     image = image.convert("RGB")
-    processor = DonutProcessor.from_pretrained("naver-clova-ix/donut-base-finetuned-docvqa")
+    processor = DonutProcessor.from_pretrained(
+        "naver-clova-ix/donut-base-finetuned-docvqa"
+    )
     model = VisionEncoderDecoderModel.from_pretrained(
         "naver-clova-ix/donut-base-finetuned-docvqa"
     )
@@ -39,9 +42,10 @@ def get_answer(image, question):
 
     return processor.token2json(seq)
 
+
 if __name__ == "__main__":
     from datasets import load_dataset
-    
+
     question = "When is the coffee break?"
     dataset = load_dataset("hf-internal-testing/example-documents", split="test")
 

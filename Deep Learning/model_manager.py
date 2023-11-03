@@ -133,7 +133,6 @@ class ModelManager:
             model="mistralai/Mistral-7B-v0.1",
             torch_dtype=torch.float16,
             use_flash_attention_2=True,
-            
         )
         mngr.register_model(intent, "intent_generator")
         return mngr
@@ -147,4 +146,3 @@ if __name__ == "__main__":
     print(mngr.models.get("intent_generator").device)
     mngr.on_gpu = "encoder"
     print(mngr.models.get("encoder").device)
-    

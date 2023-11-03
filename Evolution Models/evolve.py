@@ -71,8 +71,7 @@ def run_es_loop(rng, num_steps, fit_fn, model, **kwargs):
         state = model.tell(x, fitness, state, es_params)
         return [rng, state], fitness[jnp.argmin(fitness)]
 
-    state, scan_out = jax.lax.scan(
-        es_step, [rng, state], [jnp.zeros(num_steps)])
+    state, scan_out = jax.lax.scan(es_step, [rng, state], [jnp.zeros(num_steps)])
     return jnp.mean(scan_out), state
 
 

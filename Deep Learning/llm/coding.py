@@ -47,7 +47,7 @@ def stable_code(
         torch_dtype="auto",
     )
     inputs = tokenizer(text, return_tensors="pt")
-    
+
     if torch.cuda.is_available():
         model.cuda()
         inputs.to("cuda")

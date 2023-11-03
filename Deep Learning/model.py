@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.functional as F
@@ -10,6 +9,7 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 import pickle
 from generic_models import BinaryClassifierHead, ClassifierHead, MLP
 from data_loader import Loader
+
 
 def default_config():
     config = {
@@ -29,6 +29,7 @@ def default_config():
         "nclasses": 2,
     }
     return config
+
 
 class Model(pl.LightningModule):
     def __init__(self, config):
@@ -53,7 +54,7 @@ class Model(pl.LightningModule):
 
         # TODO
         model = MLP(
-            ((500,500), (500,500)),
+            ((500, 500), (500, 500)),
             act="gelu",
             dropout=self.config.get("dropout"),
         )
@@ -206,8 +207,7 @@ def train():
     # config = wandb.config
     # wandb_logger.watch(model, log="all")
 
-    trainer_callbacks = [EarlyStopping(
-        "validation_loss", min_delta=0.001, mode="min")]
+    trainer_callbacks = [EarlyStopping("validation_loss", min_delta=0.001, mode="min")]
 
     trainer = pl.Trainer(
         max_epochs=config.get("epochs"),
@@ -223,6 +223,6 @@ def train():
     trainer.save_checkpoint("training.ckpt")
     torch.save(model.model.state_dict, "model.pt")
     # with open("config.pickle", "wb") as f:
-    #     # config['model_name'] = model.model._get_name 
+    #     # config['model_name'] = model.model._get_name
     #     pickle.dump(config, f, protocol=pickle.HIGHEST_PROTOCOL)
     return trainer, model, data
