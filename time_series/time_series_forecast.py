@@ -1,8 +1,6 @@
 from neuralforecast import NeuralForecast
-from neuralforecast.models import NBEATS, NHITS, NBEATSx, RNN, LSTM, GRU, MLP
-from neuralforecast.utils import AirPassengersDF
+from neuralforecast.models import NBEATS, NHITS, RNN, LSTM, GRU, MLP
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA
 import statsforecast.models as stats_models
 import numpy as np
 import pandas as pd
@@ -112,8 +110,6 @@ class TimeSeriesDataFrameParser:
 
 
 def get_default_stats_models():
-    import statsforecast.models as stats_models
-
     models = [
         stats_models.AutoTheta(),
         stats_models.AutoARIMA(),
@@ -129,12 +125,12 @@ def get_default_stats_vol_models():
     return models
 
 
-def stats_forecast(x, horizon, freq, models=None, confidence=95):
+def stats_predict(df, horizon, freq, models=None, confidence=95):
     models = get_default_stats_models() if models is None else models
 
     sf = StatsForecast(models=models, freq=freq)
 
-    sf.fit(x)
+    sf.fit(df)
     pred = sf.predict(h=horizon, level=[confidence])
     return sf, pred
 
@@ -197,11 +193,11 @@ def deep_predict(df, models=None, freq="D", horizon=1, max_steps=1000, **kwargs)
 
 
 if __name__ == "__main__":
-    data = pd.read_csv("AAPL.csv", index_col="Date", parse_dates=True)
+    data = pd.read_csv("AAPL.csv", index_col="Date", parse_dates=True)  # ohlc data
     data = TimeSeriesDataFrameParser(data)
     train, test = data.parse_train_test_split()
 
-    sf, stats_pred = stats_forecast(
+    sf, stats_pred = stats_predict(
         train,
         test.shape[0],
         "D",
